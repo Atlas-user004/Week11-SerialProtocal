@@ -55,7 +55,7 @@ typedef struct _UartStructure
 	uint16_t TxLen, RxLen;
 	uint8_t *TxBuffer;
 	uint16_t TxTail, TxHead;
-	uint8_t *RxBuffer;
+	uint8_t *RxBuffer; //Receive data into this buffer.
 	uint16_t RxTail; //RXHeadUseDMA
 
 } UARTStucrture;
