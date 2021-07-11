@@ -485,9 +485,9 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 		break;
 	case DNMXP_ParameterCollect: //Receive dataIn as parameter.
 
-		if (datalen-3 > CollectedData)
+		if (datalen-3 > CollectedData) //datalen is length of protocol. datalen-3 is remove inst, CRC 1 and CRC 2.
 		{
-			parameter[CollectedData] = dataIn;
+			parameter[CollectedData] = dataIn; //It will collect only parameter.
 			CollectedData++;
 		}
 		else
@@ -570,7 +570,7 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 				crctemp[1] = (crc_calc >> 8) & 0xFF;
 
 				//Write parameter in MainMemory
-				while(Round < CollectedData)
+				while(Round < CollectedData - 2)
 				{
 					MainMemory[startAddr+Round] = parameter[2+Round];
 					Round += 1;
@@ -597,7 +597,7 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 		else //crc error
 		{
 			uint8_t temp[] =
-			{ 0xff, 0xff, 0xfd, 0x00, 0x00, 0x05, 0x00, 0x55, 0x03, 0x00, 0x00 };
+			{ 0xff, 0xff, 0xfd, 0x00, 0x00, 0x05, 0x00, 0x55, 0x03, 0x00, 0x00 }; //0x03, it mean "Error".
 			temp[4] = MotorID;
 			uint16_t crc_calc = update_crc(0, temp, 9);
 			temp[9] = crc_calc & 0xff;
