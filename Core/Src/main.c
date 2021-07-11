@@ -157,7 +157,7 @@ int main(void)
 	{
 		int16_t inputChar = UARTReadChar(&UART2);
 		//if input char == -1 ==> No New data
-		if (inputChar != -1)
+		if (inputChar != -1) //Receive data from inputchar to dataIn.
 		{
 #ifdef UARTDEBUG
 			char temp[32];
@@ -451,39 +451,39 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 		else
 			State = DNMXP_idle;
 		break;
-	case DNMXP_Reserved:
+	case DNMXP_Reserved: //Check Motor ID
 		if ((dataIn == MotorID) | (dataIn == 0xFE))
 			State = DNMXP_ID;
 		else
 			State = DNMXP_idle;
 		break;
 	case DNMXP_ID:
-		datalen = dataIn & 0xFF;
+		datalen = dataIn & 0xFF; //datalen is Length of data. This line is receive dataIn that is Len_L (8 bit lower).
 		State = DNMXP_LEN1;
 		break;
 	case DNMXP_LEN1:
-		datalen |= (dataIn & 0xFF) << 8;
+		datalen |= (dataIn & 0xFF) << 8;  //This line is receive dataIn that is Len_H (8 bit higher).
 		State = DNMXP_LEN2;
 		break;
 	case DNMXP_LEN2:
 		inst = dataIn;
-		State = DNMXP_Inst;
+		State = DNMXP_Inst; //This line is receive dataIn that is instruction.
 		break;
 	case DNMXP_Inst:
-		if (datalen > 3)
+		if (datalen > 3) //if datalen has more than 3 (inst, parameter 1, ..., parameter n, CRC 1, CRC2), it will receive next dataIn as parameter.
 		{
 			parameter[0] = dataIn;
 			CollectedData = 1; //inst 1 + para[0] 1
 			State = DNMXP_ParameterCollect;
 		}
-		else
+		else //if datalen has 3 (inst, CRC 1, CRC 2) or less than, it will check CRC.
 		{
 			CRCCheck = dataIn & 0xff;
 			State = DNMXP_CRCAndExecute;
 		}
 
 		break;
-	case DNMXP_ParameterCollect:
+	case DNMXP_ParameterCollect: //Receive dataIn as parameter.
 
 		if (datalen-3 > CollectedData)
 		{
@@ -496,19 +496,19 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 			State = DNMXP_CRCAndExecute;
 		}
 		break;
-	case DNMXP_CRCAndExecute:
-		CRCCheck |= (dataIn & 0xff) << 8;
+	case DNMXP_CRCAndExecute: //Check CRC
+		CRCCheck |= (dataIn & 0xff) << 8; //This line is receive dataIn that is CRC 2 (CRC_H).
 		//Check CRC
 		CRC_accum = 0;
 		packetSize = datalen + 7;
-		//check overlapse buffer
-		if (uart->RxTail - packetSize >= 0) //not overlapse
+		//check overlapse buffer(array)
+		if (uart->RxTail - packetSize >= 0) //not overlapse in array that collect dataIn.
 		{
 			CRC_accum = update_crc(CRC_accum,
 					&(uart->RxBuffer[uart->RxTail - packetSize]),
 					packetSize - 2);
 		}
-		else//overlapse
+		else//overlapse in array that collect dataIn.
 		{
 			uint16_t firstPartStart = uart->RxTail - packetSize + uart->RxLen;
 			CRC_accum = update_crc(CRC_accum, &(uart->RxBuffer[firstPartStart]),
@@ -517,9 +517,9 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 
 		}
 
-		if (CRC_accum == CRCCheck)
+		if (CRC_accum == CRCCheck) //Check CRC
 		{
-			switch (inst)
+			switch (inst) //inst or instruction, it will tell you what this protocal want to do.
 			{
 			case 0x01:// ping
 			{
@@ -539,20 +539,23 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 
 			case 0x02://READ
 			{
-				uint16_t startAddr = (parameter[0]&0xFF)|(parameter[1]<<8 &0xFF);
+				uint16_t startAddr = (parameter[0]&0xFF)|(parameter[1]<<8 &0xFF); //(parameter[0]&0xFF) is 8 bit lower. (parameter[1]<<8 &0xFF) is 8 bit higher.
+				//startAddr is address in MainMemory (array) that want to read.
+				//0xff is used for filter data to be 8 bit.
 				uint16_t numberOfDataToRead = (parameter[2]&0xFF)|(parameter[3]<<8 &0xFF);
-				uint8_t temp[] = {0xff,0xff,0xfd,0x00,0x00,0x00,0x00,0x55,0x00};
+				uint8_t temp[] = {0xff,0xff,0xfd,0x00,0x00,0x00,0x00,0x55,0x00};//Packet for feedback. It don't have parameter and CRC because it will be create after this line.
+				//{0xff,0xff,0xfd,0x00,0x00,0x00,0x00,0x55,0x00} = {H1,H2,H3,RSRV,Packet ID,LEN1,LEN2,INST,ERR}
 				temp[4] = MotorID;
-				temp[5] = (numberOfDataToRead + 4) & 0xff ; // +inst+err+crc1+crc2
-				temp[6] = ((numberOfDataToRead + 4)>>8) & 0xff ;
-				uint16_t crc_calc = update_crc(0, temp, 9);
-				crc_calc = update_crc(crc_calc ,&(Memory[startAddr]),numberOfDataToRead);
+				temp[5] = (numberOfDataToRead + 4) & 0xff ; // +inst+err+crc1+crc2 //This is LEN1.
+				temp[6] = ((numberOfDataToRead + 4)>>8) & 0xff ; //This is LEN2.
+				uint16_t crc_calc = update_crc(0, temp, 9); //Calculate CRC from {H1,H2,H3,RSRV,Packet ID,LEN1,LEN2,INST,ERR}.
+				crc_calc = update_crc(crc_calc ,&(Memory[startAddr]),numberOfDataToRead);//Calculate CRC from Memory[startAddr].
 				uint8_t crctemp[2];
 				crctemp[0] = crc_calc&0xff;
 				crctemp[1] = (crc_calc>>8)&0xff;
-				UARTTxWrite(uart, temp,9);
-				UARTTxWrite(uart, &(Memory[startAddr]),numberOfDataToRead);
-				UARTTxWrite(uart, crctemp,2);
+				UARTTxWrite(uart, temp,9); //Write {H1,H2,H3,RSRV,Packet ID,LEN1,LEN2,INST,ERR} (It don't have parameter and CRC).
+				UARTTxWrite(uart, &(Memory[startAddr]),numberOfDataToRead);//Write parameter.
+				UARTTxWrite(uart, crctemp,2);//Write CRC 1 and CRC 2.
 				break;
 			}
 			case 0x03://WRITE
