@@ -563,13 +563,11 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 			{
 				//LAB
 				uint16_t startAddr = (parameter[0]&0xFF)|(parameter[1]<<8 &0xFF); //Start at address in MainMemory.
-				uint8_t temp[] = {0xff,0xff,0xfd,0x00,0x00,0x00,0x00,0x55,0x00};//Create packet for feedback.
+				uint8_t temp[] = {0xff,0xff,0xfd,0x00,0x00,0x04,0x00,0x55,0x00,0x00,0x00};//Create packet for feedback.
 				temp[4] = MotorID;
-				temp[5] = CollectedData - 2;
 				uint16_t crc_calc = update_crc(0, temp, 9);
-				uint8_t crctemp[2];
-				crctemp[0] = crc_calc & 0xff;
-				crctemp[1] = (crc_calc >> 8) & 0xFF;
+				temp[9] = crc_calc & 0xff;
+				temp[10] = (crc_calc >> 8) & 0xFF;
 
 				//Write parameter in MainMemory
 				while(Round < CollectedData - 2)
@@ -578,8 +576,7 @@ void DynamixelProtocal2(uint8_t *Memory, uint8_t MotorID, int16_t dataIn,
 					Round += 1;
 				}
 				Round = 0;
-				UARTTxWrite(uart, temp, 9); //Write {H1,H2,H3,RSRV,Packet ID,LEN1,LEN2,INST,ERR}
-				UARTTxWrite(uart, crctemp,2);//Write CRC 1 and CRC 2.
+				UARTTxWrite(uart, temp, 11); //Write {H1,H2,H3,RSRV,Packet ID,LEN1,LEN2,INST,ERR,CRC1,CRC2}
 				break;
 			}
 			default: //Unknown Inst
